@@ -1,0 +1,24 @@
+imu_stats_node:
+  ros__parameters:
+    imu_topic: /livox/imu
+    window_size: 200
+    nominal_rate_hz: 200.0
+    drop_factor: 1.5
+    acc_unit_is_g: true
+    static_acc_tol: 0.05
+    static_gyro_tol: 0.02
+    static_std_tol: 0.02
+    publish_every_n: 20
+    log_period_s: 2.0
+odom_analyzer_node:
+  ros__parameters:
+    odom_topic: /Odometry
+    world_frame: camera_init
+    body_frame: body
+    min_step_m: 0.005
+    marker_every_m: 1.0
+    max_color_speed: 1.5
+    max_trajectory_points: 5000
+    max_distance_markers: 200
+    tf_wait_s: 0.2
+    log_period_s: 2.0

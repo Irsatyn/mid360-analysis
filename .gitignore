@@ -1,0 +1,26 @@
+build/
+install/
+log/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.db3
+*.db3-shm
+*.db3-wal
+*.mcap
+rosbag*/
+/bags/
+FAST_LIO/
+livox_ros_driver2*/
+*.zip
+*.pcd
+*.log
+.worktrees/
+.superpowers/
+# Local agent state, credentials and internal implementation notes
+/.agents/
+/.codex/
+/.aws/
+.env
+.env.*
+/docs/superpowers/

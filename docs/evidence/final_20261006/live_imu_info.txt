@@ -1,0 +1,57 @@
+Type: sensor_msgs/msg/Imu
+
+Publisher count: 1
+
+Node name: livox_lidar_publisher
+Node namespace: /
+Topic type: sensor_msgs/msg/Imu
+Endpoint type: PUBLISHER
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (256)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 3
+
+Node name: laser_mapping
+Node namespace: /
+Topic type: sensor_msgs/msg/Imu
+Endpoint type: SUBSCRIPTION
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: mid360_hardware_probe
+Node namespace: /
+Topic type: sensor_msgs/msg/Imu
+Endpoint type: SUBSCRIPTION
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (5)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: imu_stats_node
+Node namespace: /
+Topic type: sensor_msgs/msg/Imu
+Endpoint type: SUBSCRIPTION
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (5)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite

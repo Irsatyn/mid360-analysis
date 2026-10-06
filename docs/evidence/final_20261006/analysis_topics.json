@@ -1,0 +1,71 @@
+{
+  "counts": {
+    "/analysis/imu/rate": 225,
+    "/analysis/imu/dt_jitter": 225,
+    "/analysis/imu/acc_norm": 225,
+    "/analysis/imu/is_static": 225,
+    "/analysis/imu/gyro_bias": 225,
+    "/analysis/imu/stats": 225,
+    "/analysis/odom/distance": 225,
+    "/analysis/odom/speed": 225,
+    "/analysis/odom/displacement": 225,
+    "/analysis/odom/rpy": 225,
+    "/analysis/odom/velocity": 225,
+    "/analysis/odom/tf_error": 225,
+    "/analysis/odom/markers": 225
+  },
+  "latest": {
+    "/analysis/imu/rate": 196.2048297319056,
+    "/analysis/imu/dt_jitter": 0.0007398571972113739,
+    "/analysis/imu/acc_norm": 0.9924188624849182,
+    "/analysis/imu/is_static": false,
+    "/analysis/imu/gyro_bias": {
+      "x": null,
+      "y": null,
+      "z": null
+    },
+    "/analysis/imu/stats": [
+      196.2048297319056,
+      0.0007398571972113739,
+      4.0,
+      0.0,
+      0.0070143262937199325,
+      -0.009879525442956947,
+      0.9920921397209167,
+      0.015917524980082934,
+      0.01573626854159036,
+      0.009397109950057589,
+      -0.02055541107431054,
+      -0.009066160866059363,
+      0.009773206748068333,
+      0.006348634540972582,
+      0.0034110052762953012,
+      0.09716624822102811,
+      null
+    ],
+    "/analysis/odom/distance": 0.8692961272897207,
+    "/analysis/odom/speed": 0.048584033455284434,
+    "/analysis/odom/displacement": 0.09619972058382839,
+    "/analysis/odom/rpy": {
+      "x": -0.25302106939170355,
+      "y": -0.3933258718617942,
+      "z": 13.301065629127164
+    },
+    "/analysis/odom/velocity": {
+      "x": -0.015261644493326895,
+      "y": 0.04596003762714803,
+      "z": 0.0038942849734757085
+    },
+    "/analysis/odom/tf_error": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "/analysis/odom/markers": {
+      "marker_count": 2
+    }
+  },
+  "clock": 1791297992.5731173,
+  "video_frames": 32,
+  "note": "Actual analysis node subscriptions during a segment of real bag playback. This monitor is for display evidence; latest values are not full-bag final metrics. NaN is represented as null."
+}

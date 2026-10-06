@@ -1,0 +1,182 @@
+{
+  "mode": "live",
+  "launch_exit": 0,
+  "clean_exits": 6,
+  "capture_exit": 1,
+  "topics": {
+    "/livox/imu": {
+      "count": 2438,
+      "arrival_rate_hz": 122.06676965455755,
+      "stamp_rate_hz": 122.03855208306443,
+      "non_monotonic": 0,
+      "frames": [
+        "livox_frame"
+      ]
+    },
+    "/tf_static": {
+      "count": 1,
+      "arrival_rate_hz": 0.0,
+      "stamp_rate_hz": null,
+      "non_monotonic": 0,
+      "frames": []
+    },
+    "/analysis/imu/rate": {
+      "count": 198,
+      "arrival_rate_hz": 9.912981190705347,
+      "stamp_rate_hz": null,
+      "non_monotonic": 0,
+      "frames": []
+    },
+    "/analysis/imu/acc_norm": {
+      "count": 198,
+      "arrival_rate_hz": 9.912980341717109,
+      "stamp_rate_hz": null,
+      "non_monotonic": 0,
+      "frames": []
+    },
+    "/analysis/imu/is_static": {
+      "count": 198,
+      "arrival_rate_hz": 9.912995072836983,
+      "stamp_rate_hz": null,
+      "non_monotonic": 0,
+      "frames": []
+    },
+    "/analysis/imu/stats": {
+      "count": 198,
+      "arrival_rate_hz": 9.913003961312459,
+      "stamp_rate_hz": null,
+      "non_monotonic": 0,
+      "frames": []
+    },
+    "/livox/lidar": {
+      "count": 199,
+      "arrival_rate_hz": 9.99960659224506,
+      "stamp_rate_hz": 10.000233824659189,
+      "non_monotonic": 0,
+      "frames": [
+        "livox_frame"
+      ]
+    },
+    "/Odometry": {
+      "count": 199,
+      "arrival_rate_hz": 9.99963773383125,
+      "stamp_rate_hz": 10.000105266764661,
+      "non_monotonic": 0,
+      "frames": [
+        "camera_init",
+        "child:body"
+      ]
+    },
+    "/cloud_registered": {
+      "count": 199,
+      "arrival_rate_hz": 9.999618659492215,
+      "stamp_rate_hz": 10.000105266764661,
+      "non_monotonic": 0,
+      "frames": [
+        "camera_init"
+      ]
+    },
+    "/tf": {
+      "count": 199,
+      "arrival_rate_hz": 9.999595554237192,
+      "stamp_rate_hz": null,
+      "non_monotonic": 0,
+      "frames": []
+    },
+    "/analysis/odom/distance": {
+      "count": 199,
+      "arrival_rate_hz": 9.99952014474463,
+      "stamp_rate_hz": null,
+      "non_monotonic": 0,
+      "frames": []
+    },
+    "/analysis/odom/speed": {
+      "count": 199,
+      "arrival_rate_hz": 9.999526843096016,
+      "stamp_rate_hz": null,
+      "non_monotonic": 0,
+      "frames": []
+    },
+    "/analysis/odom/displacement": {
+      "count": 199,
+      "arrival_rate_hz": 9.999527765736174,
+      "stamp_rate_hz": null,
+      "non_monotonic": 0,
+      "frames": []
+    },
+    "/analysis/odom/tf_error": {
+      "count": 199,
+      "arrival_rate_hz": 9.999545290878789,
+      "stamp_rate_hz": null,
+      "non_monotonic": 0,
+      "frames": []
+    },
+    "/analysis/odom/markers": {
+      "count": 199,
+      "arrival_rate_hz": 9.99914834677973,
+      "stamp_rate_hz": null,
+      "non_monotonic": 0,
+      "frames": []
+    },
+    "/path": {
+      "count": 20,
+      "arrival_rate_hz": 0.9997058107306513,
+      "stamp_rate_hz": null,
+      "non_monotonic": 19,
+      "frames": [
+        "camera_init"
+      ]
+    }
+  },
+  "tf_edges": [
+    [
+      "body",
+      "livox_frame"
+    ],
+    [
+      "camera_init",
+      "body"
+    ]
+  ],
+  "tf_odom_comparison": {
+    "matched_stamps": 199,
+    "max_pos_err_m": 0.0,
+    "max_rot_err_deg": 0.0
+  },
+  "last_analysis": {
+    "/analysis/imu/rate": 198.78373456474898,
+    "/analysis/imu/acc_norm": 0.99143445188728,
+    "/analysis/imu/is_static": false,
+    "/analysis/imu/stats": [
+      198.78373456474898,
+      0.0007272925830823048,
+      49.0,
+      0.0,
+      0.006734785288572311,
+      0.03809776827692986,
+      0.9906773483753204,
+      0.0011876983476928405,
+      0.0014388641643220557,
+      0.007278459904229742,
+      0.0012292472831904888,
+      -0.013881156160496176,
+      -0.04631829634308815,
+      0.0033481815256380825,
+      0.0024188248249314348,
+      0.0027084492055859826,
+      0.000148539
+    ],
+    "/analysis/odom/distance": 0.8433625984399054,
+    "/analysis/odom/speed": 0.025149663775682396,
+    "/analysis/odom/displacement": 0.16241777903986726,
+    "/analysis/odom/tf_error": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "/analysis/odom/markers": {
+      "marker_count": 2
+    }
+  },
+  "note": "Simulated-time latency NaN is represented as null. IMU probe uses best-effort QoS and may drop samples; rates are not a device loss measurement. Capture exit refers to the failed WSLg attempt; visual evidence is checked separately."
+}

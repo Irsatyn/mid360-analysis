@@ -1,0 +1,26 @@
+[
+  {
+    "cycle": 1,
+    "imu": 605,
+    "lidar": 55,
+    "exit_code": 0,
+    "forced": false,
+    "passed": true
+  },
+  {
+    "cycle": 2,
+    "imu": 656,
+    "lidar": 55,
+    "exit_code": 0,
+    "forced": false,
+    "passed": true
+  },
+  {
+    "cycle": 3,
+    "imu": 592,
+    "lidar": 55,
+    "exit_code": 0,
+    "forced": false,
+    "passed": true
+  }
+]

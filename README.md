@@ -2,7 +2,7 @@
 
 基于 Ubuntu 22.04、ROS2 Humble 的 C++17 工程。启动 MID360 驱动与指定 FAST-LIO，录制传感器/里程计/TF 数据，并通过两个自写节点分析 IMU、运动轨迹和 TF 一致性。
 
-基础代码、自动化测试及 MID360 实时链路测试已完成，验证结果见 [验证记录](docs/validation.md)。已用真实数据验证驱动、FAST-LIO、分析节点和录包；定位精度与规定路线的运动验收仍需单独完成，见 [证据清单](docs/evidence/README.md)。合成测试数据不作为实机证据。
+基础代码、自动化测试及 MID360 实时链路测试已完成，最终测试、需求对应和提交范围见 [最终核对](docs/final_acceptance.md)，完整过程见 [验证记录](docs/validation.md)。已用真实数据验证驱动、FAST-LIO、分析节点和录包；定位精度与规定路线的运动验收仍需单独完成，见 [证据清单](docs/evidence/README.md)。合成测试数据不作为实机证据。
 
 ## 环境与第三方依赖
 
@@ -26,6 +26,8 @@ sudo apt install python3-colcon-common-extensions python3-rosdep python3-pytest 
 ```
 
 Livox-SDK2 的系统级安装按照上游 README 执行；驱动 CMake 要求能找到 `liblivox_lidar_sdk_shared.so`、`livox_lidar_api.h` 和 `livox_lidar_def.h`。安装到 `/usr/local` 后通常需要执行 `sudo ldconfig`。
+
+本机发现 SDK 内置 spdlog 与 ROS 的 spdlog 符号冲突，导致驱动停止时崩溃。使用隔离内部符号的本地 SDK 可修复，构建与回归检查方法见 [驱动退出修复](docs/driver_shutdown_fix.md)。该方法不修改第三方源码，也不替换系统库。
 
 ## 编译分析包
 
@@ -155,32 +157,52 @@ TF 查询采用独立监听线程和非阻塞重试，最多等待 `tf_wait_s=0.
 
 ## 实机启动、录制与检查
 
-先给雷达供电并连接以太网，确认主机网卡和雷达处于同一子网，再编辑本包的 `config/MID360_config.json`：
+先给雷达供电并连接以太网，确认主机有到雷达的正确路由。包内 `MID360_config.json` 是地址留空的模板，不绑定任何机器：
 
-- `MID360.host_net_info` 中 cmd/push/point/imu 的 `*_ip` 都改为实际主机 IP。
-- `lidar_configs[0].ip` 改为实际雷达 IP。
-- 默认副本 `192.168.1.41` / `192.168.1.130` 来自 ZIP，不能视为你的设备地址；不要向 JSON 添加注释。
+- `lidar_ip` 指定设备实际 IPv4，不能从主机地址自动推断设备地址。
+- 模板的主机地址留空时，按到雷达的路由自动选择源 IPv4，不发送探测数据包；多网卡、VPN 或代理影响路由时，用 `host_ip` 显式指定。
+- 完整的自定义 JSON 地址会保留，`host_ip:=auto` 可强制重新按路由选择；显式 `host_ip` 覆盖 cmd/push/point/imu 地址。端口、点云格式和外参保留。
+- Launch 生成临时运行 JSON，退出时删除；输入模板或自定义 JSON 都不会被覆盖。未指定设备地址、非 IPv4 或无效单播地址会在启动驱动前报错。
 
 ```bash
-ros2 launch mid360_analysis bringup.launch.py
+ros2 launch mid360_analysis bringup.launch.py lidar_ip:=192.168.1.130
+# 上面的设备地址仅为示例，请替换为实际地址。
+# 多网卡时明确接收地址：添加 host_ip:=192.168.1.50
 # 无显示器：rviz:=false；先打通驱动/FAST-LIO：with_analysis:=false
 # 自定义网络配置：user_config_path:=/absolute/path/MID360_config.json
 ```
 
 该 Launch 默认同时启动两个分析节点。RViz Fixed Frame 为 `camera_init`，显示 Grid、TF 名称、配准点云、Odometry、Path 和分析 markers。
 
-### WSL 镜像网络下的已验证配置
+### 通用 DDS 与跨机器通信
 
-本次测试中，Windows Hyper-V 入站规则放行设备 UDP 后，SDK 已能收数，但默认 CycloneDDS 配置仍出现 IMU 有消息、点云无消息。将 DDS 消息限制为 1400 B、分片限制为 1200 B 后，真实点云和 FAST-LIO 输出正常。所有参与启动、录包、检查和回放的终端使用相同环境：
+雷达 SDK 网络与 ROS/DDS 网络分别配置：`host_ip` 决定雷达数据的接收地址，DDS 接口决定 ROS 节点对外通信的地址，两者可以使用不同网卡。雷达配置只需在连接雷达、运行驱动的机器上设置；其他机器运行 RViz 或分析节点即可。
+
+每台 ROS 机器的终端使用：
 
 ```bash
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-export CYCLONEDDS_URI="file://$(ros2 pkg prefix --share mid360_analysis)/config/cyclonedds_wsl.xml"
-export ROS_DOMAIN_ID=86
+export CYCLONEDDS_URI="file://$(ros2 pkg prefix --share mid360_analysis)/config/cyclonedds.xml"
+export ROS_DOMAIN_ID=0  # 所有参与机器使用相同值，也可以统一改成其他值。
 unset ROS_LOCALHOST_ONLY
 ```
 
-该配置仅供同一个 WSL 实例内的 ROS 节点通信，使用 loopback 和单播发现；跨机器 ROS 通信需要另配接口与发现地址。它不改变 Livox SDK 的以太网接口，驱动 JSON 仍应填实际主机 IP。Windows 侧还需允许 MID360 的 UDP 到 WSL；参考 [微软 Hyper-V 防火墙说明](https://learn.microsoft.com/windows/security/operating-system-security/network-security/windows-firewall/hyper-v-firewall)，不要把关闭整个防火墙作为常规方案。
+通用配置自动选择接口，使用 SPDP 组播发现、单播传输数据；消息限制为 1400 B、分片限制为 1200 B，保留本机 WSL 实测有效的点云传输设置。自动选择的是 CycloneDDS 认为质量最高的接口，多网卡时不保证选中你需要的网卡，见 [官方接口配置说明](https://cyclonedds.io/docs/cyclonedds/latest/config/network_interfaces.html)。
+
+多网卡或网络不支持组播时，分别在两台机器生成配置，接口名称或本机 IPv4 按实际环境填写，`--peer` 指向对端 ROS 主机，支持重复指定：
+
+```bash
+# 机器 A 示例：本机 10.42.0.50，对端 B 10.42.0.60。
+python3 tools/configure_dds.py --interface 10.42.0.50 --multicast false \
+  --peer 10.42.0.60 --output /tmp/mid360_dds.xml
+# 机器 B：交换本机和对端地址后生成自己的文件。
+export CYCLONEDDS_URI=file:///tmp/mid360_dds.xml
+# 同一台机器的启动、录包、检查、回放终端使用相同配置。
+```
+
+跨机器需要双向网络可达和防火墙允许 ROS/DDS 的 UDP 通信；MID360 专用规则只允许设备来源，不能替代 ROS 主机之间的规则。WSL 镜像网络还需检查 Windows Hyper-V 防火墙，参考 [微软说明](https://learn.microsoft.com/windows/security/operating-system-security/network-security/windows-firewall/hyper-v-firewall)。单播 peer 可解决缺少组播发现的问题，不能绕过路由、NAT 或防火墙。
+
+`config/cyclonedds_wsl.xml` 保留为同一个 WSL 内的 loopback 隔离配置，适合只在本机运行；跨机器时使用通用配置或生成的接口/peer 配置。真正的跨机器验收应在对端接收点云等大消息，仅看到话题名称不足以证明传输正常。
 
 新终端中：
 
@@ -235,8 +257,24 @@ rqt_plot /analysis/odom/speed/data /analysis/imu/acc_norm/data
 - 检查慢速移动和回到起点的结果，不能只录制静止数据。
 - 合成自动化测试验证软件逻辑，不能证明真实网络、单位、外参、建图或定位精度正确。
 
-运行证据分别放到 `docs/images/`、`docs/evidence/` 和 `docs/videos/`。超过 50 MB 的视频使用外链，bag 不提交 Git。提交按核心统计、ROS2 节点与启动配置、文档与验收说明组织，保留至少 3 条有意义的历史。
+2026-10-06 最终复测：构建成功，colcon 汇总 50 tests、0 errors、0 failures、0 skipped；真实驱动连续三次正常退出，完整实机链路及真实 bag 回放通过。详细结果、验证边界和原始证据索引见 [最终核对](docs/final_acceptance.md)。
+
+实机点云、Odometry、TF 和自写轨迹 markers：
+
+![MID360 实机 RViz](docs/images/rviz_live.png)
+
+真实 bag 离线回放及自写分析 markers：
+
+![真实 bag 回放 RViz](docs/images/rviz_replay.png)
+
+两个 C++ 节点的实际分析输出（临时订阅监视器，NaN 显示为 None）：
+
+![分析话题输出](docs/images/analysis_echo.png)
+
+[实机短视频](docs/videos/rviz_live.mp4)、[回放短视频](docs/videos/rviz_replay.mp4)、[分析话题短视频](docs/videos/analysis_topics.mp4)、[TF 图](docs/images/tf_tree.png)、[Topic/QoS 与 bag 信息](docs/evidence/README.md)。RViz 默认相机距离为 12 m，适合本次近场观察，可按场景调整。
+
+运行证据分别放在 `docs/images/`、`docs/evidence/` 和 `docs/videos/`。超过 50 MB 的视频使用外链，bag 不提交 Git。提交按核心统计、ROS2 节点与启动配置、文档与验收说明组织，保留至少 3 条有意义的历史。
 
 ## AI 使用情况
 
-基础 C++ 节点、统计工具、Launch、配置、脚本、测试和 README 由 Codex 辅助实现；已针对提供的 ZIP 核对接口，完成自动化验证及 2026-10-06 的真实 MID360 链路测试。原始录包与检查结果保留本地；尚未完成的路线、静止零偏、定位精度及驱动正常退出验收见验证记录。
+基础 C++ 节点、统计工具、Launch、配置、脚本、测试和 README 由 Codex 辅助实现；已针对提供的 ZIP 核对接口，完成自动化验证及 2026-10-06 的真实 MID360 链路测试。原始录包与检查结果保留本地；驱动正常退出已通过隔离 SDK 复测；路线、静止零偏和定位精度的验证边界见验证记录。

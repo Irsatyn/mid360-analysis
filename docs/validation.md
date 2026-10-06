@@ -6,8 +6,8 @@
 
 - `colcon build --symlink-install --packages-select mid360_analysis`：成功构建两个 C++17 节点。
 - `colcon test --packages-select mid360_analysis --return-code-on-test-failure`：成功。
-- `colcon test-result --verbose`：36 tests，0 errors，0 failures，0 skipped。此汇总包含 ament 的测试组结果；实际测试用例为 13 项 C++ 测试和 19 项 Python 测试。
-- Python 测试：6 项真实 DDS 节点集成、12 项 Launch 配置/旋转校验、1 项完整 analysis Launch 合成 rosbag 回放。新增回归测试验证 FAST-LIO 子 Launch 的 `rviz=false` 不覆盖外层参数，修复后完整实机 Launch 已实际启动 RViz。
+- `colcon test-result --verbose`：50 tests，0 errors，0 failures，0 skipped。此汇总包含 ament 的测试组结果；实际测试用例为 13 项 C++ 测试和 33 项 Python 测试。
+- Python 测试：6 项真实 DDS 节点集成、26 项 Launch 配置/旋转/网络校验、1 项完整 analysis Launch 合成 rosbag 回放。回归测试验证 FAST-LIO 子 Launch 的 `rviz=false` 不覆盖外层参数，以及 IP 覆盖/路由选择、自定义配置保留、临时文件清理和 DDS 配置生成。
 - 合成 bag 回放验证：`use_sim_time`、IMU 静止检测与约 200 Hz、回放延迟字段 NaN、累计里程 0.12 m、速度 0.1 m/s、延迟 TF 比较结果零误差与零失败。
 - 两个主 Launch 的 `--show-args`、Python AST、Bash 语法、XML/JSON/YAML/RViz 配置解析及脚本参数检查通过。
 
@@ -41,8 +41,22 @@
 
 ## 验证边界
 
+网络配置通用化后的本机复测：使用地址留空的 JSON 模板，仅指定 `lidar_ip`，实际按路由自动选择主机地址；通用 `cyclonedds.xml` 收到 80 帧点云、79 条里程计及配准点云，79 对 TF / Odometry 误差为零，五个节点正常退出，临时 JSON 已清理。原始记录保留在 `bags/network_config_test/`。目前没有第二台 ROS 主机，尚未验证双机通信；跨机器的路由、接口选择及防火墙仍需在实际网络中检查。
+
+另用生成工具指定本机网卡 IPv4、禁用组播并添加单播 peer，在本机独立驱动/订阅进程之间收到 35 帧真实点云和 350 条 IMU，停止退出码为 0；验证了生成的配置被 Humble 的 CycloneDDS 接受，但这仍属于单机验证。
+
 - 本次未完成规定路线、回到起点或外参精度验收，没有外部定位真值。
 - 静止判定在本次实测中为 false；角速度不满足默认阈值，未人为放宽阈值，真实静止零偏估计尚未验收。
-- RViz 实时和回放进程成功启动，但 WSLg 自动截图得到黑图，已删除该无效图片；尚无有效截图或短视频。
+- 早期 WSLg 自动截图为黑图；最终通过 Windows `PrintWindow` 取得有效实机/回放截图与短视频，已提交到 `docs/images/` 和 `docs/videos/`。
 - 提供的 FAST-LIO 发布的 `/path` 顶层 header 时间戳保持不变；里程计、点云及动态 TF 时间戳正常，路径时间分析应检查各 PoseStamped。
-- 驱动退出阶段仍有问题：最终复测只向 Launch 父进程发送一次 SIGINT，FAST-LIO、两个分析节点和静态 TF 均正常退出，但提供的 livox_ros_driver2 在 SDK Deinit 后仍报 `double free or corruption (fasttop)` 并以 -6 退出。Launch 父进程返回 0 不代表所有子进程成功。源码显示驱动结束时 SDK 清理与静态 PubHandler 析构分开进行，具体内存错误原因尚未通过调用栈确认；按项目约束未修改第三方源码。运行期间的数据链路及完整 bag 有效，正常退出验收未通过。
+- 首次实机测试发现驱动退出时出现 `double free`。后续用 ASan 定位为 Livox-SDK2 内置 spdlog 1.3.1 与 ROS 系统 spdlog 1.9.2 的符号冲突；隔离 SDK 内部符号后，三次真实收数/停止、ASan 复测和最终五个节点的完整停止均通过。第三方源码未修改，详见 [驱动退出修复](driver_shutdown_fix.md)。静止零偏和定位精度验收仍待完成。
+
+## 最终提交前复测
+
+完整构建与测试再次通过：50 tests，0 errors，0 failures，0 skipped。首轮沙箱禁止 UDP 接口枚举；允许本机 DDS 网络后，完整测试通过，没有跳过测试。结果见 [软件测试报告](evidence/final_20261006/software_tests.txt)。
+
+通用 DDS 配置下，驱动连续三次收到 605/656/592 条 IMU 和各 55 帧点云，均退出码 0，无强制结束。完整实机链路收到 199 帧点云、199 条里程计和配准点云，199 对 TF/Odometry 比较误差为零，分析 TF 失败数为零，连同 RViz 的 6 个进程全部正常退出。
+
+真实 bag 回放探针在播放器开始后加入，收到 295 对 TF/Odometry，误差及失败计数为零，最终里程 1.07073 m、位移 0.08623 m；播放器、两个分析节点、RViz 共 4 个进程正常退出。两个分析节点的 `use_sim_time` 均查询为 true。295 是本次探针观察数量，原 bag 中共有 302 条 Odometry；多话题 best-effort IMU 探针丢样不能视为雷达设备丢样。
+
+已补充真实 RViz 实机/回放截图、视频与 view_frames 图。Windows 屏幕坐标采集曾出现 DPI/遮挡偏差，最终改用指定窗口的 `PrintWindow`，经人工检查实际图像有效后才纳入仓库。相机距离从约 217 m 改为 12 m，并验证点云与分析 markers 可见。需求对应、最终文件范围及实际节点输出证据见 [最终核对](final_acceptance.md)。原始日志保留在 `bags/final_validation_20261006/`。

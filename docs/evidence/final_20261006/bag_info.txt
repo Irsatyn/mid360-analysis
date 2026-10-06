@@ -1,0 +1,15 @@
+
+Files:             full_chain_bag_0.db3
+Bag size:          126.9 MiB
+Storage id:        sqlite3
+Duration:          30.229227988s
+Start:             Oct  6 2026 22:46:04.467796913 (1791297964.467796913)
+End:               Oct  6 2026 22:46:34.697024901 (1791297994.697024901)
+Messages:          7293
+Topic information: Topic: /Odometry | Type: nav_msgs/msg/Odometry | Count: 302 | Serialization Format: cdr
+                   Topic: /cloud_registered | Type: sensor_msgs/msg/PointCloud2 | Count: 303 | Serialization Format: cdr
+                   Topic: /livox/imu | Type: sensor_msgs/msg/Imu | Count: 6053 | Serialization Format: cdr
+                   Topic: /livox/lidar | Type: livox_ros_driver2/msg/CustomMsg | Count: 302 | Serialization Format: cdr
+                   Topic: /path | Type: nav_msgs/msg/Path | Count: 30 | Serialization Format: cdr
+                   Topic: /tf | Type: tf2_msgs/msg/TFMessage | Count: 302 | Serialization Format: cdr
+                   Topic: /tf_static | Type: tf2_msgs/msg/TFMessage | Count: 1 | Serialization Format: cdr

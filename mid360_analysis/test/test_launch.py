@@ -1,6 +1,7 @@
 """Launch configuration math and argument validation without a display or hardware."""
 import importlib.util
 import math
+import json
 from pathlib import Path
 
 import pytest
@@ -64,7 +65,112 @@ def test_bringup_preserves_outer_rviz_argument(tmp_path, monkeypatch):
         'fastlio_config': str(share / 'config/mid360.yaml'), 'rviz': 'true',
         'with_static_tf': 'false', 'with_analysis': 'true',
         'params': str(share / 'config/analysis_params.yaml'),
+        'lidar_ip': '192.0.2.30', 'host_ip': '192.0.2.50',
     })
     actions = module.start(context)
     visit_all_entities_and_collect_futures(actions[1], context)
     assert actions[-1].condition.evaluate(context), 'FAST-LIO include must preserve outer RViz selection'
+    module.cleanup_driver_config(context)
+
+
+def network_template():
+    config = json.loads((Path(__file__).resolve().parents[1] / 'config/MID360_config.json').read_text())
+    for key in ('cmd_data_ip', 'push_msg_ip', 'point_data_ip', 'imu_data_ip'):
+        config['MID360']['host_net_info'][key] = ''
+    config['lidar_configs'][0]['ip'] = ''
+    return config
+
+
+def test_explicit_addresses_override_template_without_changing_ports_or_source():
+    module = load('bringup')
+    config = network_template()
+    updated = module.configure_driver_network(config, '10.42.0.30', '10.42.0.50')
+    host = updated['MID360']['host_net_info']
+    assert [host[k] for k in ('cmd_data_ip', 'push_msg_ip', 'point_data_ip', 'imu_data_ip')] == ['10.42.0.50'] * 4
+    assert host['point_data_port'] == 56301
+    assert host['log_data_ip'] == ''
+    assert updated['lidar_configs'][0]['ip'] == '10.42.0.30'
+    assert config['lidar_configs'][0]['ip'] == ''
+
+
+def test_auto_host_uses_route_to_lidar(monkeypatch):
+    module = load('bringup')
+    monkeypatch.setattr(module, 'route_host_ip', lambda ip: '10.42.0.50' if ip == '10.42.0.30' else pytest.fail(ip))
+    updated = module.configure_driver_network(network_template(), '10.42.0.30')
+    assert updated['MID360']['host_net_info']['imu_data_ip'] == '10.42.0.50'
+
+
+def test_complete_custom_network_is_preserved_without_route_lookup(monkeypatch):
+    module = load('bringup')
+    config = network_template()
+    for key in ('cmd_data_ip', 'push_msg_ip', 'point_data_ip', 'imu_data_ip'):
+        config['MID360']['host_net_info'][key] = '10.99.0.50'
+    config['lidar_configs'][0]['ip'] = '10.99.0.30'
+    monkeypatch.setattr(module, 'route_host_ip', lambda _: pytest.fail('custom host must be preserved'))
+    assert module.configure_driver_network(config) == config
+
+
+@pytest.mark.parametrize('lidar, host', [('', '10.42.0.50'), ('bad-ip', '10.42.0.50'),
+                                      ('10.42.0.30', '0.0.0.0'), ('10.42.0.30', '127.0.0.1'),
+                                      ('224.0.0.1', '10.42.0.50'), ('10.42.0.30', '::1')])
+def test_invalid_network_addresses_fail_before_start(lidar, host):
+    with pytest.raises(ValueError):
+        load('bringup').configure_driver_network(network_template(), lidar, host)
+
+
+def test_runtime_config_is_separate_and_removed_on_shutdown(tmp_path):
+    module = load('bringup')
+    source = tmp_path / 'source.json'
+    original = json.dumps(network_template())
+    source.write_text(original)
+    context = LaunchContext()
+    context.launch_configurations.update(user_config_path=str(source), lidar_ip='10.42.0.30', host_ip='10.42.0.50')
+    runtime = Path(module.prepare_driver_config(context))
+    try:
+        assert runtime != source
+        assert json.loads(runtime.read_text())['lidar_configs'][0]['ip'] == '10.42.0.30'
+        assert source.read_text() == original
+    finally:
+        module.cleanup_driver_config(context)
+    assert not runtime.exists()
+    assert source.exists()
+
+
+def test_dds_generator_supports_interface_and_unicast_peers(tmp_path):
+    import subprocess
+    import sys
+    import xml.etree.ElementTree as ET
+    tool = Path(__file__).resolve().parents[2] / 'tools/configure_dds.py'
+    output = tmp_path / 'dds.xml'
+    result = subprocess.run([sys.executable, str(tool), '--output', str(output),
+                             '--interface', 'eno1', '--multicast', 'false', '--peer', '10.42.0.60'],
+                            capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    root = ET.parse(output).getroot()
+    ns = {'c': 'https://cdds.io/config'}
+    assert root.find('.//c:NetworkInterface', ns).attrib == {'name': 'eno1'}
+    assert root.find('.//c:AllowMulticast', ns).text == 'false'
+    assert {'Address': '10.42.0.60'} in [peer.attrib for peer in root.findall('.//c:Peer', ns)]
+
+
+@pytest.mark.parametrize('interface, expected', [('auto', {'autodetermine': 'true'}),
+                                                ('10.42.0.50', {'address': '10.42.0.50'})])
+def test_dds_generator_supports_auto_and_ip_selection(tmp_path, interface, expected):
+    import subprocess
+    import sys
+    import xml.etree.ElementTree as ET
+    tool = Path(__file__).resolve().parents[2] / 'tools/configure_dds.py'
+    output = tmp_path / 'dds.xml'
+    subprocess.run([sys.executable, str(tool), '--output', str(output), '--interface', interface], check=True)
+    assert ET.parse(output).find('.//{https://cdds.io/config}NetworkInterface').attrib == expected
+
+
+def test_dds_generator_rejects_multicast_peer_without_writing(tmp_path):
+    import subprocess
+    import sys
+    tool = Path(__file__).resolve().parents[2] / 'tools/configure_dds.py'
+    output = tmp_path / 'dds.xml'
+    result = subprocess.run([sys.executable, str(tool), '--output', str(output), '--peer', '224.0.0.1'],
+                            capture_output=True, text=True)
+    assert result.returncode != 0
+    assert not output.exists()

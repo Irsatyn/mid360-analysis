@@ -46,3 +46,25 @@ def test_replay_rejects_missing_bag():
     context.launch_configurations['bag'] = '/does-not-exist/mid360_bag'
     with pytest.raises(RuntimeError, match='Bag does not exist'):
         load('analysis').playback(context)
+
+
+def test_bringup_preserves_outer_rviz_argument(tmp_path, monkeypatch):
+    from launch.utilities import visit_all_entities_and_collect_futures
+    module = load('bringup')
+    fake = tmp_path / 'fast_lio'
+    (fake / 'launch').mkdir(parents=True)
+    (fake / 'launch/mapping.launch.py').write_text(
+        'from launch import LaunchDescription\ndef generate_launch_description():\n    return LaunchDescription([])\n')
+    share = Path(__file__).resolve().parents[1]
+    monkeypatch.setattr(module, 'get_package_share_directory',
+                        lambda package: str(fake if package == 'fast_lio' else share))
+    context = LaunchContext()
+    context.launch_configurations.update({
+        'user_config_path': str(share / 'config/MID360_config.json'),
+        'fastlio_config': str(share / 'config/mid360.yaml'), 'rviz': 'true',
+        'with_static_tf': 'false', 'with_analysis': 'true',
+        'params': str(share / 'config/analysis_params.yaml'),
+    })
+    actions = module.start(context)
+    visit_all_entities_and_collect_futures(actions[1], context)
+    assert actions[-1].condition.evaluate(context), 'FAST-LIO include must preserve outer RViz selection'

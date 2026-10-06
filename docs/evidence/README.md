@@ -1,8 +1,8 @@
 # 运行证据状态
 
-基础代码阶段尚未连接真实 MID360，不提供虚构的实机截图、bag 或视频。
+2026-10-06 已完成真实 MID360 实时链路、录包及离线分析回放，结果见 [验证记录](../validation.md)。原始 bag、设备日志和探针 JSON 保存在本地忽略目录 `bags/hardware_test_20261006/`，未上传到 public 仓库。RViz 已实际启动，但 WSLg 自动截图为黑图，不能作为显示证据。
 
-实机阶段需要补充：
+图像和路线验收仍需补充：
 
 - `docs/images/rviz_live.png`：实机点云、Odometry、TF。
 - `docs/images/tf_tree.png`：TF 树，并保留 view_frames 生成文件。

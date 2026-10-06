@@ -3,7 +3,7 @@ from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription, OpaqueFunction
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
@@ -25,11 +25,11 @@ def start(context):
                  'publish_freq': 10.0, 'output_data_type': 0, 'frame_id': 'livox_frame',
                  'user_config_path': driver_config, 'cmdline_input_bd_code': 'livox0000000001',
              }]),
-        IncludeLaunchDescription(
+        GroupAction(actions=[IncludeLaunchDescription(
             PythonLaunchDescriptionSource(str(fast_share / 'launch/mapping.launch.py')),
             launch_arguments={'config_path': str(fastlio_config.parent),
                               'config_file': fastlio_config.name, 'rviz': 'false',
-                              'use_sim_time': 'false'}.items()),
+                              'use_sim_time': 'false'}.items())]),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(str(share / 'launch/static_tf.launch.py')),
             condition=IfCondition(LaunchConfiguration('with_static_tf')),

@@ -2,7 +2,7 @@
 
 基于 Ubuntu 22.04、ROS2 Humble 的 C++17 工程。启动 MID360 驱动与指定 FAST-LIO，录制传感器/里程计/TF 数据，并通过两个自写节点分析 IMU、运动轨迹和 TF 一致性。
 
-当前提供全部基础代码和无需硬件的自动化测试，验证结果见 [软件验证记录](docs/validation.md)。真实雷达收数、建图、录包、RViz 截图及短视频仍需实机完成，见 [证据清单](docs/evidence/README.md)。合成测试数据不作为实机证据。
+基础代码、自动化测试及 MID360 实时链路测试已完成，验证结果见 [验证记录](docs/validation.md)。已用真实数据验证驱动、FAST-LIO、分析节点和录包；定位精度与规定路线的运动验收仍需单独完成，见 [证据清单](docs/evidence/README.md)。合成测试数据不作为实机证据。
 
 ## 环境与第三方依赖
 
@@ -88,9 +88,9 @@ camera_init                 FAST-LIO 世界坐标系，由初始化确定，不�
 
 | 话题 | 类型 | 频率/含义 | frame / 发布者 |
 |---|---|---|---|
-| `/livox/lidar` | `livox_ros_driver2/msg/CustomMsg` | 配置 10 Hz，实测待确认 | `livox_frame` / driver |
-| `/livox/imu` | `sensor_msgs/msg/Imu` | 标称约 200 Hz，实测待确认 | `livox_frame` / driver |
-| `/Odometry` | `nav_msgs/msg/Odometry` | 按有效激光帧更新，实测待确认 | `camera_init` → `body` / FAST-LIO |
+| `/livox/lidar` | `livox_ros_driver2/msg/CustomMsg` | 配置及本次实测约 10 Hz | `livox_frame` / driver |
+| `/livox/imu` | `sensor_msgs/msg/Imu` | 本次录包约 200 Hz | `livox_frame` / driver |
+| `/Odometry` | `nav_msgs/msg/Odometry` | 本次实测约 10 Hz | `camera_init` → `body` / FAST-LIO |
 | `/path` | `nav_msgs/msg/Path` | 按 FAST-LIO 实现更新 | `camera_init` / FAST-LIO |
 | `/cloud_registered` | `sensor_msgs/msg/PointCloud2` | 配准点云 | `camera_init` / FAST-LIO |
 | `/cloud_registered_body` | `sensor_msgs/msg/PointCloud2` | 机体系点云 | `body` / FAST-LIO |
@@ -169,6 +169,19 @@ ros2 launch mid360_analysis bringup.launch.py
 
 该 Launch 默认同时启动两个分析节点。RViz Fixed Frame 为 `camera_init`，显示 Grid、TF 名称、配准点云、Odometry、Path 和分析 markers。
 
+### WSL 镜像网络下的已验证配置
+
+本次测试中，Windows Hyper-V 入站规则放行设备 UDP 后，SDK 已能收数，但默认 CycloneDDS 配置仍出现 IMU 有消息、点云无消息。将 DDS 消息限制为 1400 B、分片限制为 1200 B 后，真实点云和 FAST-LIO 输出正常。所有参与启动、录包、检查和回放的终端使用相同环境：
+
+```bash
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export CYCLONEDDS_URI="file://$(ros2 pkg prefix --share mid360_analysis)/config/cyclonedds_wsl.xml"
+export ROS_DOMAIN_ID=86
+unset ROS_LOCALHOST_ONLY
+```
+
+该配置仅供同一个 WSL 实例内的 ROS 节点通信，使用 loopback 和单播发现；跨机器 ROS 通信需要另配接口与发现地址。它不改变 Livox SDK 的以太网接口，驱动 JSON 仍应填实际主机 IP。Windows 侧还需允许 MID360 的 UDP 到 WSL；参考 [微软 Hyper-V 防火墙说明](https://learn.microsoft.com/windows/security/operating-system-security/network-security/windows-firewall/hyper-v-firewall)，不要把关闭整个防火墙作为常规方案。
+
 新终端中：
 
 ```bash
@@ -226,4 +239,4 @@ rqt_plot /analysis/odom/speed/data /analysis/imu/acc_norm/data
 
 ## AI 使用情况
 
-基础 C++ 节点、统计工具、Launch、配置、脚本、测试和 README 由 Codex 辅助实现；已针对提供的 ZIP 核对接口，并在本机进行自动化验证。实机数据含义、网络与外参、运行结果和证据需由操作者确认。后续在此补充真实设备信息、录制日期、实验条件、人工检查项目与实际结果。
+基础 C++ 节点、统计工具、Launch、配置、脚本、测试和 README 由 Codex 辅助实现；已针对提供的 ZIP 核对接口，完成自动化验证及 2026-10-06 的真实 MID360 链路测试。原始录包与检查结果保留本地；尚未完成的路线、静止零偏、定位精度及驱动正常退出验收见验证记录。

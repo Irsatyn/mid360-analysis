@@ -1,8 +1,8 @@
 # MID360 + FAST-LIO 数据分析
 
-基于 Ubuntu 22.04、ROS2 Humble 的 C++17 工程。启动 MID360 驱动与指定 FAST-LIO，录制传感器/里程计/TF 数据，并通过两个自写节点分析 IMU、运动轨迹和 TF 一致性。
+基于 Ubuntu 22.04、ROS2 Humble 的 C++17 工程。启动 MID360 驱动与指定 FAST-LIO，录制传感器/里程计/TF 数据，并通过两个 C++ 节点统计 IMU 数据、运动轨迹和 TF 一致性。
 
-基础代码、自动化测试及 MID360 实时链路测试已完成，最终测试、需求对应和提交范围见 [最终核对](docs/final_acceptance.md)，完整过程见 [验证记录](docs/validation.md)。已用真实数据验证驱动、FAST-LIO、分析节点和录包；定位精度与规定路线的运动验收仍需单独完成，见 [证据清单](docs/evidence/README.md)。合成测试数据不作为实机证据。
+功能包括实时启动、数据检查、录制回放、IMU 统计和里程计/TF 分析。运行截图、短视频和测试结果见 [运行证据](docs/evidence/README.md)，需求对应关系及验证范围见 [验收记录](docs/final_acceptance.md)。
 
 ## 环境与第三方依赖
 
@@ -12,14 +12,16 @@
 - 驱动使用提供的 `livox_ros_driver2.zip` 中 `livox_ros_driver2_humble/src`；FAST-LIO 使用提供的 `FAST_LIO.zip` 中 `FAST_LIO`。不要用其他版本替换后直接假定接口相同。
 - 上游参考：[Livox-SDK2](https://github.com/Livox-SDK/Livox-SDK2)、[livox_ros_driver2](https://github.com/Livox-SDK/livox_ros_driver2)、[FAST-LIO ROS2](https://github.com/Ericsii/FAST_LIO)。实际运行以提供的 ZIP 为准。
 
-系统包可在确认软件源后安装：
+安装依赖：
 
 ```bash
-sudo apt install python3-colcon-common-extensions python3-rosdep python3-pytest \
+sudo apt install build-essential cmake pkg-config git unzip \
+  python3-colcon-common-extensions python3-rosdep python3-pytest \
   ros-humble-rclcpp ros-humble-sensor-msgs ros-humble-nav-msgs \
   ros-humble-geometry-msgs ros-humble-visualization-msgs \
   ros-humble-tf2-ros ros-humble-tf2-geometry-msgs ros-humble-tf2-tools \
-  ros-humble-rviz2 ros-humble-ros2bag ros-humble-rosbag2-storage-default-plugins \
+  ros-humble-rviz2 ros-humble-rmw-cyclonedds-cpp \
+  ros-humble-ros2bag ros-humble-rosbag2-storage-default-plugins \
   ros-humble-ament-cmake-gtest ros-humble-ament-cmake-pytest \
   ros-humble-pcl-ros ros-humble-pcl-conversions libpcl-dev libeigen3-dev \
   python3-yaml python3-matplotlib python3-dev libapr1-dev
@@ -27,14 +29,13 @@ sudo apt install python3-colcon-common-extensions python3-rosdep python3-pytest 
 
 Livox-SDK2 的系统级安装按照上游 README 执行；驱动 CMake 要求能找到 `liblivox_lidar_sdk_shared.so`、`livox_lidar_api.h` 和 `livox_lidar_def.h`。安装到 `/usr/local` 后通常需要执行 `sudo ldconfig`。
 
-本机发现 SDK 内置 spdlog 与 ROS 的 spdlog 符号冲突，导致驱动停止时崩溃。使用隔离内部符号的本地 SDK 可修复，构建与回归检查方法见 [驱动退出修复](docs/driver_shutdown_fix.md)。该方法不修改第三方源码，也不替换系统库。
+Livox-SDK2 内置的 spdlog 与 ROS 使用的版本可能发生符号冲突，造成驱动退出崩溃。完整工作空间使用隔离内部符号的 SDK 构建；原理和回归检查见 [驱动退出修复](docs/driver_shutdown_fix.md)。
 
 ## 编译分析包
 
-以本仓库位于 `/home/simuel/mid360` 为例：
+在仓库根目录执行：
 
 ```bash
-cd /home/simuel/mid360
 source /opt/ros/humble/setup.bash
 colcon build --symlink-install --packages-select mid360_analysis
 source install/setup.bash
@@ -42,26 +43,45 @@ colcon test --packages-select mid360_analysis --return-code-on-test-failure
 colcon test-result --verbose
 ```
 
-每个新终端都需要 source ROS 和工作空间。自动化集成测试会启动本机 DDS 通信，使用独立 ROS_DOMAIN_ID，不需要雷达。如果执行环境禁止网络接口访问，纯统计测试仍可运行，DDS 测试需在允许本机通信的终端执行。
+每个新终端都需要 source ROS 和工作空间。自动化集成测试使用独立进程进行 DDS 通信，使用独立 ROS_DOMAIN_ID，不需要雷达。如果执行环境禁止网络接口访问，纯统计测试仍可运行，DDS 测试需要允许 UDP 通信。
 
 ## 准备完整实机工作空间
 
-也可以将分析包和提供的两个第三方包放入独立工作空间：
+第三方源码、SDK 和 rosbag 不包含在仓库中。准备指定的 `FAST_LIO.zip`、`livox_ros_driver2.zip` 及 Livox-SDK2 源码，设置下面三个路径。仓库路径从当前目录获取，工作空间位置可自行指定。
 
 ```bash
-mkdir -p ~/mid360_ws/src
-ln -s /home/simuel/mid360/mid360_analysis ~/mid360_ws/src/mid360_analysis
-unzip /home/simuel/mid360/FAST_LIO.zip -d ~/mid360_ws/src
-unzip /home/simuel/mid360/livox_ros_driver2.zip -d ~/mid360_ws/src
-mv ~/mid360_ws/src/livox_ros_driver2_humble/src ~/mid360_ws/src/livox_ros_driver2
+# 在仓库根目录执行。
+MID360_REPO="$(pwd -P)"
+MID360_WS="${MID360_WS:-$HOME/mid360_ws}"
+FAST_LIO_ZIP=/path/to/FAST_LIO.zip
+LIVOX_DRIVER_ZIP=/path/to/livox_ros_driver2.zip
+LIVOX_SDK_SOURCE=/path/to/Livox-SDK2
+
+mkdir -p "$MID360_WS/src"
+ln -s "$MID360_REPO/mid360_analysis" "$MID360_WS/src/mid360_analysis"
+unzip "$FAST_LIO_ZIP" -d "$MID360_WS/src"
+unzip "$LIVOX_DRIVER_ZIP" -d "$MID360_WS/src"
+mv "$MID360_WS/src/livox_ros_driver2_humble/src" "$MID360_WS/src/livox_ros_driver2"
+
+# 构建仅导出公共 C API 的 SDK，避免 spdlog 符号冲突。
+MID360_SDK_PREFIX="$MID360_WS/livox_ros_driver2_local_sdk"
+python3 "$MID360_REPO/tools/build_livox_sdk_isolated.py" \
+  --source "$LIVOX_SDK_SOURCE" --prefix "$MID360_SDK_PREFIX"
+
 source /opt/ros/humble/setup.bash
-cd ~/mid360_ws
+cd "$MID360_WS"
 rosdep install --from-paths src --ignore-src --rosdistro humble -y
-colcon build --symlink-install --packages-up-to livox_ros_driver2 fast_lio mid360_analysis
+colcon build --symlink-install --packages-up-to livox_ros_driver2 fast_lio mid360_analysis \
+  --cmake-args \
+  -DLIVOX_LIDAR_SDK_LIBRARY="$MID360_SDK_PREFIX/lib/liblivox_lidar_sdk_shared.so" \
+  -DLIVOX_LIDAR_SDK_INCLUDE_DIR="$MID360_SDK_PREFIX/include" \
+  -DCMAKE_INSTALL_RPATH="$MID360_SDK_PREFIX/lib"
 source install/setup.bash
 ```
 
-上述解压步骤只需做一次，目标目录已有内容时不要重复覆盖。提供的驱动 ZIP 已带 ROS2 Humble 的 CMake/package.xml，未发现 `build.sh`，因此直接使用 colcon；只有使用其他上游分发版本时才需要按其 README 执行 `build.sh humble`。第三方代码不纳入本仓库提交。
+解压和创建链接只需执行一次，目标目录已有内容时不要重复覆盖。指定驱动 ZIP 自带 ROS2 Humble 的 CMake/package.xml，直接使用 colcon 构建。SDK 源码目录与输出目录须分开；构建和运行均使用输出目录中的共享库。第三方源码无需修改。
+
+新终端执行 `source /opt/ros/humble/setup.bash` 和 `source <工作空间>/install/setup.bash`，再设置下文的 DDS 环境。
 
 ## 数据流与坐标系
 
@@ -90,9 +110,9 @@ camera_init                 FAST-LIO 世界坐标系，由初始化确定，不�
 
 | 话题 | 类型 | 频率/含义 | frame / 发布者 |
 |---|---|---|---|
-| `/livox/lidar` | `livox_ros_driver2/msg/CustomMsg` | 配置及本次实测约 10 Hz | `livox_frame` / driver |
-| `/livox/imu` | `sensor_msgs/msg/Imu` | 本次录包约 200 Hz | `livox_frame` / driver |
-| `/Odometry` | `nav_msgs/msg/Odometry` | 本次实测约 10 Hz | `camera_init` → `body` / FAST-LIO |
+| `/livox/lidar` | `livox_ros_driver2/msg/CustomMsg` | 配置 10 Hz | `livox_frame` / driver |
+| `/livox/imu` | `sensor_msgs/msg/Imu` | 标称约 200 Hz | `livox_frame` / driver |
+| `/Odometry` | `nav_msgs/msg/Odometry` | 按有效激光帧更新，约 10 Hz | `camera_init` → `body` / FAST-LIO |
 | `/path` | `nav_msgs/msg/Path` | 按 FAST-LIO 实现更新 | `camera_init` / FAST-LIO |
 | `/cloud_registered` | `sensor_msgs/msg/PointCloud2` | 配准点云 | `camera_init` / FAST-LIO |
 | `/cloud_registered_body` | `sensor_msgs/msg/PointCloud2` | 机体系点云 | `body` / FAST-LIO |
@@ -103,7 +123,7 @@ camera_init                 FAST-LIO 世界坐标系，由初始化确定，不�
 
 `bringup` 使用 `xfer_format=1` 明确选择 CustomMsg，以保留 FAST-LIO 所需的逐点时间信息。CustomMsg 不能直接作为 RViz PointCloud2 显示；这里通过 FAST-LIO 配准点云可视化。
 
-## 两个自写节点
+## 两个分析节点
 
 ### IMU 统计节点
 
@@ -165,9 +185,9 @@ TF 查询采用独立监听线程和非阻塞重试，最多等待 `tf_wait_s=0.
 - Launch 生成临时运行 JSON，退出时删除；输入模板或自定义 JSON 都不会被覆盖。未指定设备地址、非 IPv4 或无效单播地址会在启动驱动前报错。
 
 ```bash
-ros2 launch mid360_analysis bringup.launch.py lidar_ip:=192.168.1.130
-# 上面的设备地址仅为示例，请替换为实际地址。
-# 多网卡时明确接收地址：添加 host_ip:=192.168.1.50
+LIDAR_IP="<雷达IPv4>"
+ros2 launch mid360_analysis bringup.launch.py lidar_ip:="$LIDAR_IP"
+# 多网卡时添加 host_ip:=<接收数据的主机IPv4>
 # 无显示器：rviz:=false；先打通驱动/FAST-LIO：with_analysis:=false
 # 自定义网络配置：user_config_path:=/absolute/path/MID360_config.json
 ```
@@ -187,33 +207,34 @@ export ROS_DOMAIN_ID=0  # 所有参与机器使用相同值，也可以统一改
 unset ROS_LOCALHOST_ONLY
 ```
 
-通用配置自动选择接口，使用 SPDP 组播发现、单播传输数据；消息限制为 1400 B、分片限制为 1200 B，保留本机 WSL 实测有效的点云传输设置。自动选择的是 CycloneDDS 认为质量最高的接口，多网卡时不保证选中你需要的网卡，见 [官方接口配置说明](https://cyclonedds.io/docs/cyclonedds/latest/config/network_interfaces.html)。
+通用配置自动选择接口，使用 SPDP 组播发现、单播传输数据；消息限制为 1400 B、分片限制为 1200 B，适用于点云等大消息的分片传输。自动选择的是 CycloneDDS 认为质量最高的接口，多网卡时不保证选中你需要的网卡，见 [官方接口配置说明](https://cyclonedds.io/docs/cyclonedds/latest/config/network_interfaces.html)。
 
-多网卡或网络不支持组播时，分别在两台机器生成配置，接口名称或本机 IPv4 按实际环境填写，`--peer` 指向对端 ROS 主机，支持重复指定：
+多网卡或网络不支持组播时，分别在两台机器生成配置，接口名称或主机 IPv4 按实际环境填写，`--peer` 指向对端 ROS 主机，支持重复指定：
 
 ```bash
-# 机器 A 示例：本机 10.42.0.50，对端 B 10.42.0.60。
-python3 tools/configure_dds.py --interface 10.42.0.50 --multicast false \
-  --peer 10.42.0.60 --output /tmp/mid360_dds.xml
-# 机器 B：交换本机和对端地址后生成自己的文件。
+# 在仓库根目录执行；对端交换两个地址生成自己的配置。
+DDS_INTERFACE="<接口名称或主机IPv4>"
+DDS_PEER="<对端ROS主机IPv4>"
+python3 tools/configure_dds.py --interface "$DDS_INTERFACE" --multicast false \
+  --peer "$DDS_PEER" --output /tmp/mid360_dds.xml
 export CYCLONEDDS_URI=file:///tmp/mid360_dds.xml
 # 同一台机器的启动、录包、检查、回放终端使用相同配置。
 ```
 
 跨机器需要双向网络可达和防火墙允许 ROS/DDS 的 UDP 通信；MID360 专用规则只允许设备来源，不能替代 ROS 主机之间的规则。WSL 镜像网络还需检查 Windows Hyper-V 防火墙，参考 [微软说明](https://learn.microsoft.com/windows/security/operating-system-security/network-security/windows-firewall/hyper-v-firewall)。单播 peer 可解决缺少组播发现的问题，不能绕过路由、NAT 或防火墙。
 
-`config/cyclonedds_wsl.xml` 保留为同一个 WSL 内的 loopback 隔离配置，适合只在本机运行；跨机器时使用通用配置或生成的接口/peer 配置。真正的跨机器验收应在对端接收点云等大消息，仅看到话题名称不足以证明传输正常。
+`config/cyclonedds_wsl.xml` 保留为同一个 WSL 内的 loopback 隔离配置，适合仅在同一主机运行；跨机器时使用通用配置或生成的接口/peer 配置。真正的跨机器验收应在对端接收点云等大消息，仅看到话题名称不足以证明传输正常。
 
-新终端中：
+在工作空间根目录的新终端中：
 
 ```bash
-ros2 run mid360_analysis check_topics.sh /home/simuel/mid360/docs/evidence
-ros2 run mid360_analysis record.sh /home/simuel/mid360/bags/run01
+ros2 run mid360_analysis check_topics.sh docs/evidence/run01
+ros2 run mid360_analysis record.sh bags/run01
 # 停止录制使用 Ctrl+C，等待 rosbag 完成 metadata 写入
-ros2 bag info /home/simuel/mid360/bags/run01
+ros2 bag info bags/run01
 ```
 
-建议先静止 10 s，再绕行 1–2 分钟，最后回到起点静止 5 s。录制 `/livox/lidar /livox/imu /Odometry /path /cloud_registered /tf /tf_static`。传感器/里程计/TF 必须实际有数据，不能只检查话题名称。
+运动验收流程：静止 10 s、绕行 1–2 分钟、回到起点静止 5 s。录制 `/livox/lidar /livox/imu /Odometry /path /cloud_registered /tf /tf_static`。传感器/里程计/TF 必须实际有数据，不能只检查话题名称。
 
 检查脚本会记录每条命令与退出码，将 Topic 输出保存为文本、TF 文件保存到独立目录。`topic hz` 和 `tf2_echo` 是持续命令，到达采样超时产生 exit=124 属于预期；其他命令超时则需检查输入是否存在。
 
@@ -222,11 +243,11 @@ ros2 bag info /home/simuel/mid360/bags/run01
 停止实机 Launch 后：
 
 ```bash
-ros2 launch mid360_analysis analysis.launch.py bag:=/home/simuel/mid360/bags/run01
+ros2 launch mid360_analysis analysis.launch.py bag:=bags/run01
 # 无显示器：rviz:=false；回放速度：rate:=0.5
 ```
 
-回放只消费已记录的 FAST-LIO 输出，不启动驱动或重新运行 FAST-LIO。分析、RViz 使用 `use_sim_time=true`；回放发布 `/clock` 并默认延迟 2 s 留出发现时间。仅回放关键输入，防止旧 `/analysis/*` 与本次分析结果混合。`/tf_static` 强制使用 transient_local，以支持稍晚加入的 RViz/TF 订阅者。
+回放只消费已记录的 FAST-LIO 输出，不启动驱动或重新运行 FAST-LIO。分析、RViz 使用 `use_sim_time=true`；回放发布 `/clock` 并默认延迟 2 s 留出发现时间。仅回放关键输入，防止旧 `/analysis/*` 与重新计算的分析结果混合。`/tf_static` 强制使用 transient_local，以支持稍晚加入的 RViz/TF 订阅者。
 
 也可拆开运行：
 
@@ -234,7 +255,7 @@ ros2 launch mid360_analysis analysis.launch.py bag:=/home/simuel/mid360/bags/run
 # 终端 A
 ros2 launch mid360_analysis analysis.launch.py rviz:=false
 # 终端 B
-ros2 run mid360_analysis play.sh /home/simuel/mid360/bags/run01 1.0
+ros2 run mid360_analysis play.sh bags/run01 1.0
 ```
 
 `analysis.launch.py` 默认不补发静态 TF，因为标准录包已包含 `/tf_static`。只有 bag 缺少 `body → livox_frame` 时才添加 `with_static_tf:=true`，并提供与录制时一致的 `fastlio_config`。
@@ -257,24 +278,19 @@ rqt_plot /analysis/odom/speed/data /analysis/imu/acc_norm/data
 - 检查慢速移动和回到起点的结果，不能只录制静止数据。
 - 合成自动化测试验证软件逻辑，不能证明真实网络、单位、外参、建图或定位精度正确。
 
-2026-10-06 最终复测：构建成功，colcon 汇总 50 tests、0 errors、0 failures、0 skipped；真实驱动连续三次正常退出，完整实机链路及真实 bag 回放通过。详细结果、验证边界和原始证据索引见 [最终核对](docs/final_acceptance.md)。
+自动化测试覆盖统计计算、DDS 节点通信、Launch/网络配置及合成 rosbag 回放。真实数据的驱动、FAST-LIO、录制回放和节点输出证据见 [验收记录](docs/final_acceptance.md)。静止零偏、路线闭合、定位精度和双机 DDS 的验证范围在该记录中单独列出。
 
-实机点云、Odometry、TF 和自写轨迹 markers：
+| 运行证据 | 截图 | 短视频 / 数据 |
+|---|---|---|
+| 实机点云、Odometry、TF 和分析轨迹 | [RViz 截图](docs/images/rviz_live.png) | [实机视频](docs/videos/rviz_live.mp4) |
+| 真实 bag 离线回放 | [回放截图](docs/images/rviz_replay.png) | [回放视频](docs/videos/rviz_replay.mp4) |
+| 两个 C++ 节点的分析输出 | [话题监视器](docs/images/analysis_echo.png) | [分析视频](docs/videos/analysis_topics.mp4) |
+| TF 与 Topic 信息 | [TF 图](docs/images/tf_tree.png) | [Topic/QoS 与录包信息](docs/evidence/README.md) |
 
-![MID360 实机 RViz](docs/images/rviz_live.png)
+话题监视器订阅实际分析输出，NaN 显示为 None。RViz 默认相机距离为 12 m，可按场景调整。
 
-真实 bag 离线回放及自写分析 markers：
-
-![真实 bag 回放 RViz](docs/images/rviz_replay.png)
-
-两个 C++ 节点的实际分析输出（临时订阅监视器，NaN 显示为 None）：
-
-![分析话题输出](docs/images/analysis_echo.png)
-
-[实机短视频](docs/videos/rviz_live.mp4)、[回放短视频](docs/videos/rviz_replay.mp4)、[分析话题短视频](docs/videos/analysis_topics.mp4)、[TF 图](docs/images/tf_tree.png)、[Topic/QoS 与 bag 信息](docs/evidence/README.md)。RViz 默认相机距离为 12 m，适合本次近场观察，可按场景调整。
-
-运行证据分别放在 `docs/images/`、`docs/evidence/` 和 `docs/videos/`。超过 50 MB 的视频使用外链，bag 不提交 Git。提交按核心统计、ROS2 节点与启动配置、文档与验收说明组织，保留至少 3 条有意义的历史。
+运行证据分别放在 `docs/images/`、`docs/evidence/` 和 `docs/videos/`。超过 50 MB 的视频使用外链，bag 不提交 Git。源码、配置、工具与运行证据纳入版本管理，第三方源码、原始 bag、构建产物和编辑器设置由 `.gitignore` 排除。
 
 ## AI 使用情况
 
-基础 C++ 节点、统计工具、Launch、配置、脚本、测试和 README 由 Codex 辅助实现；已针对提供的 ZIP 核对接口，完成自动化验证及 2026-10-06 的真实 MID360 链路测试。原始录包与检查结果保留本地；驱动正常退出已通过隔离 SDK 复测；路线、静止零偏和定位精度的验证边界见验证记录。
+使用 Codex 辅助编写 C++ 节点、启动配置、工具、测试和文档。运行证据来自真实设备及真实 rosbag；AI 生成内容不作为实验数据。测试范围和限制以验收记录为准。

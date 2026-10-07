@@ -13,17 +13,20 @@ AddressSanitizer 调用栈显示：Livox-SDK2 的 `std::shared_ptr<spdlog::logge
 从本仓库根目录执行：
 
 ```bash
+MID360_REPO="$(pwd -P)"
+MID360_SDK_PREFIX="$MID360_REPO/livox_ros_driver2_local_sdk"
 python3 tools/build_livox_sdk_isolated.py \
-  --source /absolute/path/Livox-SDK2 \
-  --prefix "$PWD/livox_ros_driver2_local_sdk"
+  --source /path/to/Livox-SDK2 \
+  --prefix "$MID360_SDK_PREFIX"
 
-# 在原驱动工作空间中重新链接；两个路径均使用绝对路径。
+# 进入驱动工作空间后重新链接。
+cd /path/to/workspace
 source /opt/ros/humble/setup.bash
 colcon build --packages-select livox_ros_driver2 --cmake-args \
   -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release \
-  -DLIVOX_LIDAR_SDK_LIBRARY=/home/simuel/mid360/livox_ros_driver2_local_sdk/lib/liblivox_lidar_sdk_shared.so \
-  -DLIVOX_LIDAR_SDK_INCLUDE_DIR=/home/simuel/mid360/livox_ros_driver2_local_sdk/include \
-  -DCMAKE_INSTALL_RPATH=/home/simuel/mid360/livox_ros_driver2_local_sdk/lib
+  -DLIVOX_LIDAR_SDK_LIBRARY="$MID360_SDK_PREFIX/lib/liblivox_lidar_sdk_shared.so" \
+  -DLIVOX_LIDAR_SDK_INCLUDE_DIR="$MID360_SDK_PREFIX/include" \
+  -DCMAKE_INSTALL_RPATH="$MID360_SDK_PREFIX/lib"
 ```
 
 也可先不重新链接，在启动驱动的终端把该本地 SDK 的 `lib` 目录放到 `LD_LIBRARY_PATH` 最前。不需要对整个系统设置 `LD_PRELOAD`。
